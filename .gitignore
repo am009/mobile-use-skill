@@ -1,0 +1,5 @@
+__pycache__/
+screen.png
+screen.png.json
+*.egg-info/
+ui_tree.xml
