@@ -19,13 +19,15 @@ get_screenshot(
 
 **Behavior:**
 - When `with_ui=False`: Captures plain screenshot
-- When `with_ui=True`: Captures screenshot, parses UI hierarchy, draws numbered labels on interactive elements, and generates `{save_path}.json` with coordinates
+- When `with_ui=True`: Captures screenshot, parses UI hierarchy, draws numbered labels on interactive elements, and generates `{save_path}.json` with center coordinates
 
 **JSON Output Format:**
 ```json
 {"1": [540, 200], "2": [540, 400], "3": [270, 600]}
 ```
 Keys are label numbers, values are `[x, y]` center coordinates.
+
+`with_ui=True` is helpful for rough priors, but it is not guaranteed to detect every tappable control. When detection is sparse, use the raw screenshot together with the precision bbox workflow in `references/precision.md`.
 
 **Element Detection:**
 Finds elements with `clickable="true"` or `focusable="true"` in the UI hierarchy. Elements closer than `min_dist` pixels are filtered to prevent label overlap.

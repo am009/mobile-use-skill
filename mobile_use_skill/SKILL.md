@@ -1,163 +1,111 @@
 ---
 name: mobile-use
-description: This skill should be used when the user asks to "control my phone", "tap on the screen", "take a screenshot of my phone", "automate Android", "interact with mobile app", "click element on phone", "type text on phone", "swipe on screen", "navigate back on phone", or needs to capture, annotate, or interact with an Android device via ADB.
+description: This skill should be used when the user asks to control an Android phone, tap the screen, take a phone screenshot, automate Android via ADB, type into a mobile app, swipe on screen, navigate back/home, or interact with UI elements on a connected device.
 ---
 
 # Mobile Use
 
-Control Android devices via ADB with automatic UI element detection and coordinate-based interaction.
+Control Android devices through ADB with screenshot-based interaction.
 
-## Core Workflow
+## Default Path
 
-To automate interaction with an Android device:
-
-1. **Capture screenshot with UI annotations** to see numbered interactive elements
-2. **Read the JSON coordinates file** to get element positions
-3. **Tap elements by coordinates** using the label numbers from the screenshot
-4. **Repeat** for multi-step interactions
+Use `get_screenshot(..., with_ui=True)` before most actions. The generated `{image}.json` label-to-center map is usually reliable and should be the first choice for taps.
 
 ```python
 import json
-from mobile_use import get_screenshot, tap, text, back
+from mobile_use import get_screenshot, tap
 
-# Step 1: Capture with UI annotations
-get_screenshot("/tmp/screen.png", with_ui=True)
-# Creates: /tmp/screen.png (annotated image) + /tmp/screen.png.json (coordinates)
-
-# Step 2: Load coordinates
+get_screenshot("/tmp/screen.png", with_ui=True, min_dist=15)
 with open("/tmp/screen.png.json") as f:
-    elements = json.load(f)  # {"1": [x, y], "2": [x, y], ...}
+    elements = json.load(f)
 
-# Step 3: Tap element by number
 x, y = elements["3"]
 tap(x, y)
-
-# Step 4: Continue interaction
-text("search query")
-back()
 ```
 
-## Key Functions
+## When To Use Precision Tap
 
-### Screenshot and UI Detection
+Use the precision workflow only when:
 
-```python
-get_screenshot(save_path, with_ui=True, dark_mode=False, min_dist=30)
+- the target is missing from the annotated screenshot
+- the label appears attached to the wrong UI region
+- a tap from `{image}.json` did not produce the expected UI change
+- the target is too small or dense for a safe first-pass click
+
+## Precision Tap
+
+1. Capture a plain screenshot with `get_screenshot("/tmp/raw.png")`.
+2. Prefer delegating localization to a short-lived sub-agent.
+3. If needed, add a normalized grid:
+
+```bash
+python mobile_use_skill/scripts/box_tool.py grid \
+  --image /tmp/raw.png \
+  --output /tmp/raw-grid.png
 ```
 
-- `with_ui=True`: Annotate screenshot with numbered labels and generate JSON coordinate file
-- `dark_mode=True`: Use light text on dark background for visibility on light apps
-- `min_dist`: Minimum pixel distance between elements (prevents label overlap)
+4. Estimate a rough bbox in `[x_min, y_min, x_max, y_max]` format using `0..999` coordinates.
+5. Create a crop:
 
-### Device Control
+```bash
+python mobile_use_skill/scripts/box_tool.py crop \
+  --image /tmp/raw.png \
+  --bbox 380 640 620 700 \
+  --normalized \
+  --output /tmp/raw-crop.png
+```
 
-| Function | Purpose |
-|----------|---------|
-| `tap(x, y)` | Tap at coordinates |
-| `text(input_str)` | Type text into focused field |
-| `swipe(x1, y1, x2, y2, duration=400)` | Swipe gesture |
-| `long_press(x, y, duration=1000)` | Long press |
-| `back()`, `home()`, `enter()` | Navigation keys |
-| `keyevent(code)` | Send any Android keycode |
-| `get_device_size()` | Get screen dimensions |
+6. Refine the target inside the crop.
+7. Map the refined crop bbox back to original pixels:
 
-## JSON Coordinate Format
+```bash
+python mobile_use_skill/scripts/box_tool.py map \
+  --crop-box 320 1460 760 1900 \
+  --bbox 430 410 602 575 \
+  --normalized \
+  --image-size 1080 2400
+```
 
-When `with_ui=True`, a JSON file is created alongside the screenshot:
+8. Tap the mapped center and verify the UI changed. If not, crop tighter and repeat.
+
+## Sub-agent Guidance
+
+For precision localization, give the sub-agent only:
+
+- the target description
+- the current screenshot or crop path
+- the required output schema
+
+Ask it to return JSON only:
 
 ```json
-{"1": [540, 200], "2": [540, 400], "3": [270, 600]}
+{
+  "bbox": [430, 410, 602, 575],
+  "center": [516, 492],
+  "need_more_cropping": false,
+  "reason": "Target is clearly separated from adjacent controls."
+}
 ```
 
-- Keys: Label numbers shown on the annotated screenshot
-- Values: `[x, y]` center coordinates for tapping
+The main agent should perform the actual tap and verification.
 
-## Practical Examples
+## API
 
-### Open an app and search
+Common functions:
 
-```python
-import json
-from mobile_use import get_screenshot, tap, text, enter
+- `get_screenshot(save_path, with_ui=False, dark_mode=False, min_dist=30)`
+- `tap(x, y)`
+- `text(input_str)`
+- `swipe(x1, y1, x2, y2, duration=400)`
+- `long_press(x, y, duration=1000)`
+- `back()`, `home()`, `enter()`, `keyevent(code)`
+- `get_device_size()`
 
-# Capture home screen
-get_screenshot("/tmp/home.png", with_ui=True)
-with open("/tmp/home.png.json") as f:
-    elements = json.load(f)
+Package source:
 
-# Tap app icon (element 5)
-x, y = elements["5"]
-tap(x, y)
+`/home/wjk/Mobile-UI-Skill/mobile_use_src/`
 
-# Wait for app, capture new screen
-import time; time.sleep(2)
-get_screenshot("/tmp/app.png", with_ui=True)
-with open("/tmp/app.png.json") as f:
-    elements = json.load(f)
+## References
 
-# Tap search field and type
-x, y = elements["1"]
-tap(x, y)
-text("hello world")
-enter()
-```
-
-### Scroll through content
-
-```python
-from mobile_use import get_screenshot, swipe, get_device_size
-
-w, h = get_device_size()
-
-# Swipe up to scroll down
-swipe(w // 2, h * 3 // 4, w // 2, h // 4, duration=400)
-
-# Capture after scroll
-get_screenshot("/tmp/scrolled.png", with_ui=True)
-```
-
-### Handle dense UI
-
-For screens with many close elements:
-
-```python
-# Reduce minimum distance to capture more elements
-get_screenshot("/tmp/dense.png", with_ui=True, min_dist=15)
-```
-
-## Element Detection
-
-`get_screenshot(with_ui=True)` identifies interactive elements from the UI hierarchy:
-
-- Elements with `clickable="true"`
-- Elements with `focusable="true"`
-
-Elements too close together are filtered based on `min_dist` to prevent overlapping labels.
-
-## Setup
-
-**Requirements:**
-- ADB installed and in PATH
-- Android device with USB debugging enabled
-
-**Python Package:**
-
-`mobile_use` 已作为独立 Python 包全局安装（editable mode），源码位于：
-```
-/home/wjk/Mobile-UI-Skill/mobile_use/
-```
-
-无需额外安装依赖，直接 `import mobile_use` 即可使用。
-
-如需重新安装：
-```bash
-pip install -e /home/wjk/Mobile-UI-Skill/mobile_use
-```
-
-## Additional Resources
-
-### Reference Files
-
-For complete API documentation including all parameters, return types, and key codes:
-
-- **`references/api.md`** - Full API reference with all functions and Android key codes
+- `references/api.md` for the full API
+- `references/precision.md` for the full precision localization workflow

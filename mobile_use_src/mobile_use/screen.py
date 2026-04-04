@@ -4,7 +4,6 @@
 """
 
 import io
-import json
 import os
 import tempfile
 import xml.etree.ElementTree as ET
@@ -133,8 +132,6 @@ def _save_elements_json(json_path: str, elem_list: List[_RawElement]) -> Dict:
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(elements, f, ensure_ascii=False)
     return elements
-
-
 def get_screenshot(
     save_path: Optional[str] = None,
     with_ui: bool = False,
