@@ -170,7 +170,7 @@ def _execute_action(action: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _require_point(value: Any, field_name: str) -> tuple[int, int]:
-    if not isinstance(value, list) or len(value) != 2:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
         raise ValueError(f"{field_name} must be a [x, y] array")
     x, y = value
     if not isinstance(x, int) or not isinstance(y, int):
