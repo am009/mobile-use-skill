@@ -1,5 +1,7 @@
 __pycache__/
+runs/
 screen.png
 screen.png.json
 *.egg-info/
 ui_tree.xml
+Prompt.md

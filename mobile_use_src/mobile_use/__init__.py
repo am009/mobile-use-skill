@@ -12,6 +12,7 @@ from .controller import (
     back, home, enter, keyevent,
     get_device_size,
 )
+from .grounding import GroundingConfig, solve as solve_grounded_action
 
 __all__ = [
     # 屏幕
@@ -23,4 +24,6 @@ __all__ = [
     "swipe",
     "back", "home", "enter", "keyevent",
     "get_device_size",
+    "GroundingConfig",
+    "solve_grounded_action",
 ]
