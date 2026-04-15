@@ -33,10 +33,10 @@ def render_overlay(image_path: Path, action: OperatorAction, output_path: Path) 
             cv2.circle(mask, action.point_px, ring_radius, 255, thickness, cv2.LINE_AA)
         overlay = _blend_inverse_mask(overlay, mask)
         _draw_focus_point(overlay, action.point_px)
-        if action.action_type == "long_press" and action.duration_ms:
+        if action.action_type == "long_press":
             _draw_anchor_text(
                 overlay,
-                "long press %dms" % action.duration_ms,
+                "long press",
                 (action.point_px[0] + cross_size + 12, action.point_px[1] - 8),
             )
     elif action.action_type == "swipe" and action.start_px and action.end_px:
@@ -54,10 +54,9 @@ def render_overlay(image_path: Path, action: OperatorAction, output_path: Path) 
         overlay = _blend_inverse_mask(overlay, mask)
         _draw_focus_point(overlay, action.start_px, filled=True)
         _draw_focus_point(overlay, action.end_px, filled=False)
-        if action.duration_ms:
-            mid_x = int(round((action.start_px[0] + action.end_px[0]) / 2.0))
-            mid_y = int(round((action.start_px[1] + action.end_px[1]) / 2.0))
-            _draw_anchor_text(overlay, "swipe %dms" % action.duration_ms, (mid_x + 12, mid_y - 8))
+        mid_x = int(round((action.start_px[0] + action.end_px[0]) / 2.0))
+        mid_y = int(round((action.start_px[1] + action.end_px[1]) / 2.0))
+        _draw_anchor_text(overlay, "swipe", (mid_x + 12, mid_y - 8))
     else:
         raise RuntimeError("Unsupported action for rendering: %s" % action.action_type)
 

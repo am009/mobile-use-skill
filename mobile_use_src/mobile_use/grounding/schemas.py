@@ -12,6 +12,7 @@ from .types import EvaluatorResult, OperatorAction
 
 ACTION_TYPES = ["tap", "long_press", "swipe"]
 VERDICTS = ["accept", "reject"]
+DEFAULT_GESTURE_DURATION_MS = 1000
 REJECT_LABELS = [
     "wrong_target",
     "wrong_action_type",
@@ -54,7 +55,7 @@ def operator_schema() -> Dict[str, Any]:
             },
             {
                 "if": {"properties": {"action_type": {"const": "long_press"}}},
-                "then": {"required": ["point_999", "duration_ms"]},
+                "then": {"required": ["point_999"]},
             },
             {
                 "if": {"properties": {"action_type": {"const": "swipe"}}},
@@ -62,7 +63,6 @@ def operator_schema() -> Dict[str, Any]:
                     "required": [
                         "start_999",
                         "end_999",
-                        "duration_ms",
                     ],
                 },
             },
@@ -139,7 +139,6 @@ def normalize_operator_output(payload: Dict[str, Any], image_size: Tuple[int, in
     point_999 = _optional_norm_point(payload.get("point_999"), field_name="point_999")
     start_999 = _optional_norm_point(payload.get("start_999"), field_name="start_999")
     end_999 = _optional_norm_point(payload.get("end_999"), field_name="end_999")
-    duration_ms = _optional_positive_int(payload.get("duration_ms"), field_name="duration_ms")
 
     if action_type == "tap":
         if point_999 is None:
@@ -160,7 +159,7 @@ def normalize_operator_output(payload: Dict[str, Any], image_size: Tuple[int, in
     if action_type == "long_press":
         if point_999 is None:
             raise SchemaValidationError("long_press action requires point_999")
-        duration_ms = duration_ms or 1000
+        duration_ms = DEFAULT_GESTURE_DURATION_MS
         point_px = _denormalize_point(point_999, width, height)
         python_call = f"long_press({point_px[0]}, {point_px[1]}, duration={duration_ms})"
         return OperatorAction(
@@ -177,7 +176,7 @@ def normalize_operator_output(payload: Dict[str, Any], image_size: Tuple[int, in
 
     if start_999 is None or end_999 is None:
         raise SchemaValidationError("swipe action requires start_999 and end_999")
-    duration_ms = duration_ms or 400
+    duration_ms = DEFAULT_GESTURE_DURATION_MS
     start_px = _denormalize_point(start_999, width, height)
     end_px = _denormalize_point(end_999, width, height)
     python_call = (

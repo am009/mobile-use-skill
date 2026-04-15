@@ -6,65 +6,59 @@ Complete API documentation for the mobile_use module.
 
 ### get_screenshot()
 
-Capture device screenshot with optional UI element annotation.
+Capture a device screenshot.
 
 ```python
-get_screenshot(
-    save_path: str = None,      # Output path (default: temp directory)
-    with_ui: bool = False,      # Annotate with numbered elements
-    dark_mode: bool = False,    # Light text on dark background
-    min_dist: int = 30          # Minimum pixel distance between elements
-) -> str                        # Returns path to saved PNG
+get_screenshot(save_path: str = None) -> str
 ```
 
-**Behavior:**
-- When `with_ui=False`: Captures plain screenshot
-- When `with_ui=True`: Captures screenshot, parses UI hierarchy, draws numbered labels on interactive elements, and generates `{save_path}.json` with center coordinates
-
-**JSON Output Format:**
-```json
-{"1": [540, 200], "2": [540, 400], "3": [270, 600]}
-```
-Keys are label numbers, values are `[x, y]` center coordinates.
-
-`with_ui=True` is helpful for rough priors, but it is not guaranteed to detect every tappable control. When detection is sparse, use the raw screenshot together with the precision bbox workflow in `references/precision.md`.
-
-**Element Detection:**
-Finds elements with `clickable="true"` or `focusable="true"` in the UI hierarchy. Elements closer than `min_dist` pixels are filtered to prevent label overlap.
+This is the usual first step before calling `interact_with_screen(...)`.
 
 ---
 
-## Coordinate-Based Actions
+## Language-Grounded Interaction
 
-### tap()
+### interact_with_screen()
 
-Tap at screen coordinates.
-
-```python
-tap(x: int, y: int) -> str
-```
-
-### long_press()
-
-Long press at coordinates.
+Interpret a screenshot plus a natural-language instruction, then immediately execute the grounded action on the device.
 
 ```python
-long_press(x: int, y: int, duration: int = 1000) -> str
+interact_with_screen(
+    image: str,
+    instruction: str,
+    *,
+    config: GroundingConfig | None = None,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+    max_rounds: int | None = None,
+    out: str | None = None,
+    workdir: str | None = None,
+    timeout_sec: int | None = None,
+) -> dict
 ```
-- `duration`: Press duration in milliseconds
 
-### swipe()
-
-Swipe between two points.
+**Typical usage:**
 
 ```python
-swipe(
-    start_x: int, start_y: int,
-    end_x: int, end_y: int,
-    duration: int = 400
-) -> str
+from mobile_use import get_screenshot, interact_with_screen
+
+get_screenshot("/tmp/screen.png")
+result = interact_with_screen(
+    "/tmp/screen.png",
+    "点击微信",
+    reasoning_effort="low",
+    max_rounds=1,
+)
 ```
-- `duration`: Swipe duration in milliseconds
+
+**Return shape:**
+- Includes the normal grounding result.
+- Adds an `execution` field describing whether the controller call was performed.
+- On success, `action` contains the grounded action and `execution.controller_result` contains the controller return value.
+
+**Notes:**
+- This is the recommended way to click, long-press, or swipe based on a screenshot.
+- Low-level coordinate actions are intentionally not the main public workflow here.
 
 ---
 
@@ -181,7 +175,7 @@ pip install opencv-python pyshine
 
 ## Error Handling
 
-All functions raise `RuntimeError` when:
+Grounding or controller execution may raise `RuntimeError` when:
 - No Android device is connected
 - ADB command fails
 - Device serial specified in `ANDROID_SERIAL` is not found
@@ -189,7 +183,7 @@ All functions raise `RuntimeError` when:
 Example:
 ```python
 try:
-    tap(100, 200)
+    result = interact_with_screen("/tmp/screen.png", "点击微信")
 except RuntimeError as e:
     print(f"ADB error: {e}")
 ```
